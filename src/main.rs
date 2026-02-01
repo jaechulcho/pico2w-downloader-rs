@@ -142,6 +142,14 @@ fn main() -> Result<()> {
     header[0..4].copy_from_slice(&len.to_le_bytes());
     header[4..8].copy_from_slice(&crc_val.to_le_bytes());
     port.write_all(&header)?;
+    port.flush()?;
+
+    // Tiny delay to allow any shell echoes to arrive, then CLEAR them
+    std::thread::sleep(Duration::from_millis(100));
+    port.clear(serialport::ClearBuffer::Input)?;
+
+    // Wait for Header ACK
+    wait_for_ack(&mut port).context("Failed to receive ACK after header (Pico might still be in shell mode - did you forget --reboot?)")?;
 
     // 8. Stream Data
     println!("Uploading data...");
@@ -157,6 +165,12 @@ fn main() -> Result<()> {
     while sent < data.len() {
         let end = (sent + args.chunk_size).min(data.len());
         port.write_all(&data[sent..end])?;
+        port.flush()?;
+
+        // Wait for Chunk ACK
+        wait_for_ack(&mut port)
+            .with_context(|| format!("Failed to receive ACK after chunk at {}", sent))?;
+
         sent = end;
         pb.set_position(sent as u64);
     }
@@ -165,4 +179,15 @@ fn main() -> Result<()> {
     println!("Done.");
 
     Ok(())
+}
+
+fn wait_for_ack(port: &mut Box<dyn serialport::SerialPort>) -> Result<()> {
+    let mut ack_buf = [0u8; 1];
+    port.read_exact(&mut ack_buf)
+        .context("Timeout or error waiting for ACK")?;
+    if ack_buf[0] == 0x06 {
+        Ok(())
+    } else {
+        anyhow::bail!("Invalid ACK received: 0x{:02X}", ack_buf[0])
+    }
 }
