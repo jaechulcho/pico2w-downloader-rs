@@ -55,9 +55,9 @@ fn main() -> Result<()> {
             match record {
                 ihex::Record::Data { offset, value } => {
                     let target_addr = base_addr + offset as u32;
-                    // Map 0x10010100 -> 0 (relative binary for the app slot)
-                    if target_addr >= 0x10010100 {
-                        let rel_offset = (target_addr - 0x10010100) as usize;
+                    // Map 0x10011000 -> 0 (relative binary for the app slot)
+                    if target_addr >= 0x10011000 {
+                        let rel_offset = (target_addr - 0x10011000) as usize;
                         if rel_offset + value.len() <= buffer.len() {
                             buffer[rel_offset..rel_offset + value.len()].copy_from_slice(&value);
                             max_offset = max_offset.max(rel_offset + value.len());
@@ -72,7 +72,7 @@ fn main() -> Result<()> {
             }
         }
         if max_offset == 0 {
-            anyhow::bail!("No data found in HEX file for address >= 0x10010100");
+            anyhow::bail!("No data found in HEX file for address >= 0x10011000");
         }
         data = buffer[..max_offset].to_vec();
     } else {
